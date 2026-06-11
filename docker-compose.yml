@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SYMSPELL_INDEX_PATH=/app/ps_supplier/symspell_index.pickle
+      - OPTIMIZED_DATA_PATH=/app/ps_supplier/ps_supplier.pkl
+    command: tail -f /dev/null
+
+volumes:
+  pg_data:

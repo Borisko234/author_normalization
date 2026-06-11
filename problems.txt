@@ -1,0 +1,62 @@
+rozdielny autory s rovnakym menom -> pouzit llm
+typo v zadanom mene -> vyhodit vynimku, alebo llm call
+
+dobre, mam myslienku, ze budem postupne pracovavat mena,
+pride mi J. K. Rowling, zistim preizvisko, urobim normalizovany tvar na
+j k rowling. pozriem sa do databazy, ci tam mam uz teketo meno ulozene.
+ak nie, tak to ulozim , ak ano, tak sa pozriem na vsetky original mena,
+ktore ukazuju na toto normlaizovane meno. ak mam viac ako len inicialy,
+tak porovnam cele mena a zistim ci maju rovnake meno. ak nemam cele meno,
+tak sa pozriem na ich knihy, a to poslem ai aby mi to posudilo. ak su dvaja autory,
+tak to zapisem cez ciarku.
+
+ulozit vsetko zatial do json
+{
+  "j k rowling": [
+    {
+      "id": "person_1",
+      "full_name": "Joanne Kathleen Rowlingová",
+      "books": ["Harry Potter a Kameň mudrcov", "Prázdne miesto"],
+      "source_ids": [3184, 603398]
+    },
+    {
+      "id": "person_2",
+      "full_name": "J K Rowling",
+      "books": ["Harry Potter a Kameň mudrcov", "Prázdne miesto"],
+      "source_ids": [3184, 603398]
+    }
+  ],
+  "jack k rowling": [
+    {
+      "id": "person_2",
+      "full_name": "Jack Kennedy Rowling",
+      "books": ["Dejiny Jacka"],
+      "source_ids": [639445]
+    }
+  ]
+}
+
+
+cd report_v5
+python3 -m http.server 8080
+
+
+probley pri normalizacii - DONE typo v mene,Pike Aprilynne a Pike Aprliynne
+                         - DONE zly typo check - Original: Aleš Kisela = aleš gisela ; Original: Aleš Sisel = aleš g
+                         - DONE neuzavreta zatvorka - Original: Alessandrini, Adriano (Professor of Transportation Science and Economics, Department of Civil and Environmental Engineer = alessandrini a ( o t s a e d o c a e e
+                         - DONE/merging ending Austr and Austria, but name is still "aq a a f q u a a" AQ Austria - Agentur für Qualitätssicherung und Akkreditierung Austr = aq a a f q u a a
+
+                         - a kolektiv, a spol - Original:Hahn a kolektiv Aleš = aleš h a k
+                         - (), "",-  Katarzyna Barlińska P.S. Herytiera (Pizgacz) = herytiera k b p s
+                                    P.S. Herytiera = herytiera p s
+                                    P.S. Herytiera "pizgacz" = "pizgacz" p s h  -> nemozem len tak odstranit "", lebo mam autorov ako "shafiqurrahmam"
+
+                         - zle poradie mien - Original: De Giuli, Alessandro = alessandro d g
+                         - zle ulozenie v DB - Original: Alessi, Charles = alessi c  - knizky pri nich su od inych autorov, ale je to zle v DB
+                         - zly merge Original: Brandhorst, Andrea - Original: Brandhorst, Andreas
+                         - nerozdelujem ked je len ',' Original: Begg David, Fisher Stanley, Vernasca Gianluigi, Dornbusch Rudiger
+                         - nespajanie rovnakych napr Original: Behary Wendy - Original: Wendy T. Behary
+
+
+ak je origina_search[0].count <= 1, tak je to typo alebo novy -> skusim to opravit -> pozriem sa do DB na ostatne casti mena,
+                                    ak ak su ostatne casti rovnake, tak je to typo a ukladam upravenu verziu, ak sa casti nezhoduju, tak je to nove meno a ukladam povodnu verziu

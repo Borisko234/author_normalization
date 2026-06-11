@@ -1,0 +1,15 @@
+report_v3/
+*.csv
+*.txt
+*.pickle
+*.pkl
+.git/
+__pycache__/
+*.html
+*.json
+!requirements.txt
+ps_supplier/*.csv
+ps_supplier/*.txt
+ps_supplier/*.pickle
+ps_supplier/*.pkl
+!ps_supplier/csv.txt
