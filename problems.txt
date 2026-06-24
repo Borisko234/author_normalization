@@ -41,7 +41,7 @@ cd report_v5
 python3 -m http.server 8080
 
 
-probley pri normalizacii - DONE typo v mene,Pike Aprilynne a Pike Aprliynne
+problemy pri normalizacii - DONE typo v mene,Pike Aprilynne a Pike Aprliynne
                          - DONE zly typo check - Original: Aleš Kisela = aleš gisela ; Original: Aleš Sisel = aleš g
                          - DONE neuzavreta zatvorka - Original: Alessandrini, Adriano (Professor of Transportation Science and Economics, Department of Civil and Environmental Engineer = alessandrini a ( o t s a e d o c a e e
                          - DONE/merging ending Austr and Austria, but name is still "aq a a f q u a a" AQ Austria - Agentur für Qualitätssicherung und Akkreditierung Austr = aq a a f q u a a

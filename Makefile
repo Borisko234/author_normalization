@@ -26,6 +26,10 @@ shell:
 logs:
 	sudo docker compose logs -f app
 
+# Run the latest author report
+report:
+	.venv/bin/python3 generate_report_v4.py
+
 # Clean optimized data (removes the built image to force regeneration)
 clean:
 	sudo docker compose down --rmi all

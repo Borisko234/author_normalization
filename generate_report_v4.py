@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 no_books_count = 0
-def generate_report_v3():
+def generate_report_v4():
     global no_books_count
     print("Loading output.json...")
     with open("output.json", "r", encoding="utf-8") as f:
@@ -14,6 +14,7 @@ def generate_report_v3():
                     'active', 'code', 'first_name', 'last_name', 'birth_year',
                     'death_year', 'description', 'col13', 'col14', 'col15',
                     'col16', 'col17']
+    # Note: ps_supplier/ps_supplier.csv is used in v3
     df_supplier = pd.read_csv("ps_supplier/ps_supplier.csv", sep=";", names=supplier_cols, usecols=['id', 'name'], dtype=str, low_memory=False)
     
     print("Building name_to_id mapping...")
@@ -53,13 +54,14 @@ def generate_report_v3():
                 "books": books
             })
         
-        if has_any_books:
+        # Filter: Only display authors when there are >1 original authors in source data
+        if len(data['original_name']) > 1 and has_any_books:
             authors_data.append({
                 "normalized_name": norm_name,
                 "original_names": orig_names_with_books
             })
 
-    print(f"Total authors with books: {len(authors_data)}")
+    print(f"Total authors with >1 original names and books: {len(authors_data)}")
     
     # Split into chunks (e.g., 2000 authors per file)
     chunk_size = 2000
@@ -67,7 +69,7 @@ def generate_report_v3():
     total_chunks = math.ceil(len(authors_data) / chunk_size)
     
     # Define directories
-    base_dir = "report_v5"
+    base_dir = "report_v6"
     parts_dir = os.path.join(base_dir, "parts")
     
     if not os.path.exists(parts_dir):
@@ -94,7 +96,7 @@ def generate_report_v3():
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Author Normalization Report v3 - Part {i+1}</title>
+    <title>Author Normalization Report v4 - Part {i+1}</title>
     <style>
         body {{ font-family: sans-serif; margin: 20px; background-color: #f4f4f9; }}
         .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }}
@@ -148,50 +150,31 @@ def generate_report_v3():
         <div id="authorList">
 """)
             
-            # for author in chunk:
-                # f.write(f'            <div class="author-card" data-name="{author["normalized_name"].lower()} {" ".join([on["name"].lower() for on in author["original_names"]])}">\n')
-                # f.write(f'                <div class="author-name">{author["normalized_name"]}</div>\n')
-                #
-                # for orig in author["original_names"]:
-                    # if not orig["books"]: continue
-                    # f.write(f'                <div class="orig-name-section">\n')
-                    # f.write(f'                    <div class="orig-name">Original: {orig["name"]}</div>\n')
-                    # f.write(f'                    <div class="books-grid">\n')
-                    
-                    # for b_id in orig["books"]:
-                    #     img_url = f"https://img-cloud.megaknihy.cz/{b_id}-category/7bb17d304530a6a2b81a63bd0fedef4c/odhaleni-michaela-jacksona-pribeh-ktery-jste-nikdy-neslyseli.webp"
-                    #     f.write(f'                        <div class="book">\n')
-                    #     f.write(f'                            <img data-src="{img_url}" alt="Book {b_id}" class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" onclick="openModal((this.dataset.src || this.src).replace(\'-category\', \'-large\'))">\n')
-                    #     f.write(f'                            <div class="book-id">ID: {b_id}</div>\n')
-                    #     f.write(f'                        </div>\n')
-            for author in chunk:
-                f.write(
-                    f'            <div class="author-card" data-name="{author["normalized_name"].lower()} {" ".join([on["name"].lower() for on in author["original_names"]])}">\n')
-                f.write(f'                <div class="author-name">{author["normalized_name"]}</div>\n')
+        for author in chunk:
+            f.write(f'            <div class="author-card" data-name="{author["normalized_name"].lower()} {" ".join([on["name"].lower() for on in author["original_names"]])}">\n')
+            f.write(f'                <div class="author-name">{author["normalized_name"]}</div>\n')
 
-                for orig in author["original_names"]:
-                    f.write(f'                <div class="orig-name-section">\n')
-                    f.write(f'                    <div class="orig-name">Original: {orig["name"]}</div>\n')
+            for orig in author["original_names"]:
+                f.write(f'                <div class="orig-name-section">\n')
+                f.write(f'                    <div class="orig-name">Original: {orig["name"]}</div>\n')
 
-                    if orig["books"]:
-                        f.write(f'                    <div class="books-grid">\n')
-                        for b_id in orig["books"]:
-                            img_url = f"https://img-cloud.megaknihy.cz/{b_id}-category/7bb17d304530a6a2b81a63bd0fedef4c/odhaleni-michaela-jacksona-pribeh-ktery-jste-nikdy-neslyseli.webp"
-                            f.write(f'                        <div class="book">\n')
-                            f.write(
-                                f'                            <img data-src="{img_url}" alt="Book {b_id}" class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" onclick="openModal((this.dataset.src || this.src).replace(\'-category\', \'-large\'))">\n')
-                            f.write(f'                            <div class="book-id">ID: {b_id}</div>\n')
-                            f.write(f'                        </div>\n')
-                        f.write(f'                    </div>\n')
-                    else:
-                        no_books_count += 1
-                        f.write(
-                            f'                    <div style="color: #95a5a6; font-style: italic;">No books found in the database for this name.</div>\n')
+                if orig["books"]:
+                    f.write(f'                    <div class="books-grid">\n')
+                    for b_id in orig["books"]:
+                        img_url = f"https://img-cloud.megaknihy.cz/{b_id}-category/7bb17d304530a6a2b81a63bd0fedef4c/odhaleni-michaela-jacksona-pribeh-ktery-jste-nikdy-neslyseli.webp"
+                        f.write(f'                        <div class="book">\n')
+                        f.write(f'                            <img data-src="{img_url}" alt="Book {b_id}" class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" onclick="openModal((this.dataset.src || this.src).replace(\'-category\', \'-large\'))">\n')
+                        f.write(f'                            <div class="book-id">ID: {b_id}</div>\n')
+                        f.write(f'                        </div>\n')
+                    f.write(f'                    </div>\n')
+                else:
+                    no_books_count += 1
+                    f.write(f'                    <div style="color: #95a5a6; font-style: italic;">No books found in the database for this name.</div>\n')
 
-                    f.write(f'                </div>\n')
-                f.write(f'            </div>\n')
+                f.write(f'                </div>\n')
+            f.write(f'            </div>\n')
 
-            f.write("""
+        f.write("""
         </div>
     </div>
 
@@ -287,9 +270,10 @@ def generate_report_v3():
             search_index.append({"n": author["normalized_name"], "p": i + 1})
     
     # Save search_index.json separately as requested
+    # Change: Make search_index more readable by adding indentation
     print(f"Generating {base_dir}/search_index.json...")
     with open(f"{base_dir}/search_index.json", "w", encoding="utf-8") as f:
-        json.dump(search_index, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(search_index, f, ensure_ascii=False, indent=2)
     try:
         os.chmod(f"{base_dir}/search_index.json", 0o666)
     except PermissionError:
@@ -325,8 +309,8 @@ def generate_report_v3():
 </head>
 <body>
     <div class="container">
-        <h1>Author Normalization Report</h1>
-        <p>Total Authors with Books: """ + str(len(authors_data)) + """</p>
+        <h1>Author Normalization Report v4</h1>
+        <p>Total Authors with Books and >1 Original Names: """ + str(len(authors_data)) + """</p>
         
         <div class="search-section">
             <h3>Quick Search (Global)</h3>
@@ -357,6 +341,8 @@ def generate_report_v3():
             <script>
                 const searchIndex = """)
 
+        # For the embedded index, we might still want it compact to avoid huge HTML files,
+        # but the prompt asked to make "search_index more readable", which usually refers to the .json file.
         search_index_json = json.dumps(search_index, ensure_ascii=True, separators=(',', ':'))
         search_index_json = search_index_json.replace('</script>', '<\\/script>')
         f.write(search_index_json)
@@ -412,6 +398,7 @@ def generate_report_v3():
 
     print(f"Done! Reports generated in {base_dir} directory")
 
+
 if __name__ == "__main__":
-    generate_report_v3()
+    generate_report_v4()
     print(no_books_count)
