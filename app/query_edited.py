@@ -3,6 +3,7 @@ import pandas as pd
 import json
 from functools import lru_cache
 
+from sqlalchemy.sql.operators import not_between_op
 from symspellpy import Verbosity
 from index_original_dictionary import get_sym_spell
 from thefuzz import fuzz
@@ -12,6 +13,8 @@ from collections import defaultdict
 _df = None
 results = {}
 
+total_distinct_names = 0
+merged_names_count = 0
 
 def get_df():
     global _df
@@ -49,39 +52,16 @@ def split_name(name):
     return [p for p in parts if p]
 
 def split_people(name: str) -> list[str]:
-    if ',' not in name:
-        return [name.strip()]
-
-    parts = [n.strip() for n in name.split(',')]
-
-    # If it's "Doe, Jane, Smith, Bob", parts are ['Doe', 'Jane', 'Smith', 'Bob']
-    # If all parts are single words, and there are >= 4 parts, it's likely multiple authors in "Last, First" format
-    if all(len(p.split()) == 1 for p in parts) and len(parts) >= 4 and len(parts) % 2 == 0:
-        new_people = []
-        for i in range(0, len(parts), 2):
-            new_people.append(f"{parts[i]}, {parts[i+1]}")
-        return new_people
-
-    # If all parts are single words and there are 2 or 3, it's likely ONE author "Last, First" or "Last, First Middle"
-    if all(len(p.split()) == 1 for p in parts) and len(parts) <= 3:
-        return [name.strip()]
-
-    # If some parts have multiple words, commas might be person delimiters
-    new_people = []
-    i = 0
-    while i < len(parts):
-        current_part = parts[i]
-        if len(current_part.split()) >= 2:
-            new_people.append(current_part)
-            i += 1
-        else:
-            if i + 1 < len(parts) and len(parts[i+1].split()) == 1:
-                new_people.append(f"{current_part}, {parts[i+1]}")
-                i += 2
-            else:
-                new_people.append(current_part)
-                i += 1
-    return new_people
+    if isinstance(name, list):
+        return name[0]
+    names = [n.strip() for n in re.split(r'[;]', name) if n.strip()]
+    if len(names) == 1:
+        splitted_names = [n.strip() for n in re.split(r'[,]', name) if n.strip()]
+        for name in splitted_names:
+            if len([n.strip() for n in re.split(r'[ ]', name) if n.strip()]) <= 1:
+                return names
+        return splitted_names
+    return names
 
 def get_first_and_last_name(name: list):
     if len(name) < 2:
@@ -242,97 +222,84 @@ def create_full_final_name(full_name: list, surname: str):
             first_names.append(name)
     return f"{surname} {' '.join(first_names)}"
 
-def pipeline(name: str, ss):
-    people = split_people(name)
-    
-    person_keys = []
-    for person in people:
-        splited_name = split_name(person)
-        if not splited_name:
-            continue
-        
-        first_last = get_first_and_last_name(splited_name)
-        surname = get_surname(tuple(first_last), ss)
-        
-        if surname is None:
-            # Fallback for single word names or if surname detection fails
-            surname = splited_name[-1]
-            
-        key = create_key(splited_name, surname, ss)
-        person_keys.append((key, splited_name, surname))
+def pipeline(name: str, ss, raw):
+    global total_distinct_names
+    global merged_names_count
+    total_distinct_names += 1
 
-    if not person_keys:
+    splited_name = split_name(name)
+    first_last = get_first_and_last_name(splited_name)
+    surname = get_surname(first_last, ss)
+
+    if surname is None:
         return
-        
-    # Create the combined key
-    combined_key = ", ".join(pk[0] for pk in person_keys)
+    key = create_key(splited_name, surname, ss)
 
-    if combined_key not in results:
-        results[combined_key] = {"original_name": [name], "books": []}
+    if key not in results:
+        results[key] = {"original_name": [name], "full name": [raw]}
+        # results[key] = {"original_name": [raw], "books": []}
+
         return
 
-    if name in results[combined_key]["original_name"]:
+    if name in results[key]["original_name"]:
         return
 
-    # Consistency check - if it's a single author, we can use the original logic
-    if len(people) == 1:
-        key, splited_name, surname = person_keys[0]
-        if all(same_person(name, existing) for existing in results[combined_key]["original_name"]):
-            results[combined_key]["original_name"].append(name)
-        else:
-            full_key = create_full_key(splited_name, surname, ss)
-            if full_key == combined_key:
-                full_key = f"{combined_key} ({name.lower()})"
-            if full_key not in results:
-                results[full_key] = {"original_name": [name], "books": []}
-            elif name not in results[full_key]["original_name"]:
-                results[full_key]["original_name"].append(name)
+    if all(same_person(name, existing) for existing in results[key]["original_name"]):
+        merged_names_count += 1
+        results[key]["original_name"].append(name)
+        results[key]["full name"].append(raw)
+        # results[key]["original_name"].append(raw)
+
     else:
-        # For multiple authors, just append if it maps to the same combined key for now
-        # as the original consistency check was designed for single authors
-        if name not in results[combined_key]["original_name"]:
-            results[combined_key]["original_name"].append(name)
+        full_key = create_full_key(splited_name, surname, ss)
+        if full_key == key:
+            full_key = f"{key} ({name.lower()})"
+        if full_key not in results:
+            results[full_key] = {"original_name": [name], "full name": [raw]}
+            # results[full_key] = {"original_name": [raw], "books": []}
+        elif name not in results[full_key]["original_name"]:
+            merged_names_count += 1
+            results[full_key]["original_name"].append(name)
+            results[key]["full name"].append(raw)
+            # results[full_key]["original_name"].append(raw)
 
 
 if __name__ == "__main__":
+    from itertools import islice
+    import sys
+    import json
+    # names = json.load(sys.stdin)
     import time
-    ss = get_sym_spell()
     start = time.time()
-    names = ["Mareš, Antonín","Mareš, Antonín", "Castro Francisca, Rodero Ignacio, Sardinero Carmen, Rebollo Begona", "Andreas Brandhorst", "Brandhorst, Andreas", "Pike Aprilynne", "Pike Aprliynne", "Aleš Kisela", "Alessandrini, Adriano (Professor of Transportation Science and Economics, Department of Civil and Environmental Engineer", "" ]
-    # print(split_people(names))
-    # print(len(split_people(names)))
+
+    with open("raw_DB_names.txt", "r", encoding="utf-8") as d:
+        names = json.load(d)
+
+    total_names_in_DB = 0
+
+    ss = get_sym_spell()
+
     i = 0
-    # get_df()
-    # build_name_index()
-    # names = _df['name'].fillna('')
+    build_name_index()
     for raw in names:
-        # print(raw)
+        total_names_in_DB += 1
         i +=1
         print(i)
-        # people = split_people(raw)
-        # if len(people) >= 2:
+        people = split_people(raw)
+        for person in people:
+            pipeline(person, ss, raw)
 
-            # for person in people:
-            # print(people)
-            # print(raw)
-        # else:
-        print(split_name(raw))
-        for person in split_people(raw):
-            print(f"printing perso : {person}")
-            splited_name = split_name(person)
-            print(splited_name)
-            if not splited_name:
-                continue
+    output = {
+        "total names in DB": total_names_in_DB,
+        "total distinct count": total_distinct_names,
+        "merged names count": merged_names_count,
+        "merger ratio": (total_distinct_names / merged_names_count)
+    }
 
-            first_last = get_first_and_last_name(splited_name)
-            print(first_last)
-            surname = get_surname(tuple(first_last), ss)
-            print(surname)
-        # pipeline(raw, ss)
-        # for person in people:
-        #     pipeline(person, ss)
-    #
-    with open("output3.json", "w", encoding="utf-8") as f:
+    with open("output_DB.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
+    with open("output_numbers_DB.json", "w", encoding="utf-8") as d:
+        json.dump(output, d, indent=2, ensure_ascii=False)
+
 
     print(f"Execution time: {time.time() - start:.2f} seconds")

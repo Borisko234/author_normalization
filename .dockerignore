@@ -1,9 +1,11 @@
-report_v3/
+report_v*/
+output*.json
 *.csv
 *.txt
 *.pickle
 *.pkl
 .git/
+.idea/
 __pycache__/
 *.html
 *.json
@@ -13,3 +15,6 @@ ps_supplier/*.txt
 ps_supplier/*.pickle
 ps_supplier/*.pkl
 !ps_supplier/csv.txt
+Makefile
+Dockerfile
+docker-compose.yml

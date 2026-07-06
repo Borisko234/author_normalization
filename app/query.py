@@ -12,6 +12,8 @@ from collections import defaultdict
 _df = None
 results = {}
 
+total_distinct_names = 0
+merged_names_count = 0
 
 def get_df():
     global _df
@@ -49,7 +51,14 @@ def split_name(name):
     return [p for p in parts if p]
 
 def split_people(name: str) -> list[str]:
-    return [n.strip() for n in re.split(r'[,]', name) if n.strip()]
+    names = [n.strip() for n in re.split(r'[;]', name) if n.strip()]
+    if len(names) == 1:
+        splitted_names = [n.strip() for n in re.split(r'[,]', name) if n.strip()]
+        for name in splitted_names:
+            if len([n.strip() for n in re.split(r'[ ]', name) if n.strip()]) <= 1:
+                return names
+        return splitted_names
+    return names
 
 def get_first_and_last_name(name: list):
     if len(name) < 2:
@@ -173,7 +182,7 @@ def create_key(full_name: list, surname: str, ss=None) -> str:
     #         initials.append(resolved[0])
     # return f"{surname} {' '.join(initials)}"
     initials = [
-        get_best_term(normalize_string(n), ss)[0][0]  # just the initial
+        get_best_term(normalize_string(n), ss)[0][0]
         for n in full_name
         if fuzz.ratio(get_best_term(normalize_string(n), ss)[0], surname) < 80
     ]
@@ -210,7 +219,11 @@ def create_full_final_name(full_name: list, surname: str):
             first_names.append(name)
     return f"{surname} {' '.join(first_names)}"
 
-def pipeline(name: str, ss):
+def pipeline(name: str, ss, raw):
+    global total_distinct_names
+    global merged_names_count
+    total_distinct_names += 1
+
     splited_name = split_name(name)
     first_last = get_first_and_last_name(splited_name)
     surname = get_surname(first_last, ss)
@@ -220,51 +233,77 @@ def pipeline(name: str, ss):
     key = create_key(splited_name, surname, ss)
 
     if key not in results:
-        results[key] = {"original_name": [name], "books": []}
+        results[key] = {"original_name": [name], "full name": [raw]}
+        # results[key] = {"original_name": [raw], "books": []}
+
         return
 
     if name in results[key]["original_name"]:
         return
 
     if all(same_person(name, existing) for existing in results[key]["original_name"]):
+        merged_names_count += 1
         results[key]["original_name"].append(name)
+        results[key]["full name"].append(raw)
+        # results[key]["original_name"].append(raw)
+
     else:
         full_key = create_full_key(splited_name, surname, ss)
         if full_key == key:
             full_key = f"{key} ({name.lower()})"
         if full_key not in results:
-            results[full_key] = {"original_name": [name], "books": []}
+            results[full_key] = {"original_name": [name], "full name": [raw]}
+            # results[full_key] = {"original_name": [raw], "books": []}
         elif name not in results[full_key]["original_name"]:
+            merged_names_count += 1
             results[full_key]["original_name"].append(name)
+            results[key]["full name"].append(raw)
+            # results[full_key]["original_name"].append(raw)
 
 
 if __name__ == "__main__":
     from itertools import islice
     import time
-    ss = get_sym_spell()
     start = time.time()
 
+    total_count_full = 0
+
+    ss = get_sym_spell()
+
     i = 0
-    # names = ["J. K. Rowling", "Joanne K. Rowling", "Joanne Kathleen Rowling", "Rowling, Joanne K.", "Mary GrandPré; J. K. Rowling", "J. K. Rowling Robert", "Homer"]
     get_df()
     build_name_index()
     names = _df['name'].fillna('')
+
     for raw in names:
+        total_count_full += 1
+        # print(raw)
         i +=1
         print(i)
         people = split_people(raw)
         for person in people:
-            pipeline(person, ss)
+            pipeline(person, ss, raw)
 
-    with open("output3.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
+    output = {
+        "total_count_full": total_count_full,
+        "total count": total_distinct_names,
+        "merged count": merged_names_count,
+        "merger ratio": (total_distinct_names/merged_names_count)
+    }
 
-    # first = "Brachma¿ski"
-    # typo_results = ss.lookup(first, Verbosity.ALL, max_edit_distance=2)
-    # for r in typo_results:
-    #     print(f"{r.count} {r.term} {r.distance}")
 
-    # print(f"first {get_best_term(first, ss)[0]} {get_best_term(first, ss)[1]}")
-    # print(f"last {get_best_term(last, ss)[0]} {get_best_term(last, ss)[1]}")
+    def sort_json(obj):
+        if isinstance(obj, dict):
+            return {k: sort_json(v) for k, v in sorted(obj.items())}
+        if isinstance(obj, list):
+            return [sort_json(item) for item in obj]
+        return obj
+
+    sorted_results = sort_json(results)
+    with open("output.json", "w", encoding="utf-8") as f:
+        json.dump(sorted_results, f, indent=2, ensure_ascii=False)
+    with open("output_numbers.json", "w", encoding="utf-8") as d:
+        json.dump(output, d, indent=2, ensure_ascii=False)
+
 
     print(f"Execution time: {time.time() - start:.2f} seconds")
