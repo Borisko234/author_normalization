@@ -5,4 +5,4 @@ symspellpy
 thefuzz
 requests
 dedupe
-#splink
+splink
