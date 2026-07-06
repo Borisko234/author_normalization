@@ -3,6 +3,11 @@ services:
     build: .
     volumes:
       - .:/app
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8gb
     environment:
       - PYTHONPATH=/app
       - DB_HOST=${DB_HOST}
