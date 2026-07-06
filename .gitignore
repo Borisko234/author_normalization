@@ -151,7 +151,6 @@ cython_debug/
 
 # Project specific ignores
 *.json
-!requirements.txt
 *.csv
 # Ensure ps_supplier.csv is ignored even if other csvs are unignored
 ps_supplier/ps_supplier.csv
@@ -162,6 +161,8 @@ ps_supplier/ps_supplier.csv
 *.pickle
 report_v5/
 ps_product.csv
+!requirements.txt
+
 
 # OS-specific files
 .DS_Store
