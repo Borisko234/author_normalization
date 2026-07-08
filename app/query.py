@@ -1,4 +1,6 @@
 import re
+import sys
+
 import pandas as pd
 import json
 from functools import lru_cache
@@ -30,7 +32,7 @@ def get_df():
             names=column_names,
             usecols=['name'],
             dtype={'name': str},
-            low_memory=False
+            low_memory=False,
         )
     return _df
 
@@ -46,9 +48,19 @@ def build_name_index():
                 _name_index[token].add(full_name.lower())
 
 def split_name(name):
+    name = str(name)
     name = re.sub(r'\([^)]*\)?', '', name)
-    parts = re.split(r'[\s.,-]+', name.lower().strip())
-    return [p for p in parts if p]
+
+    import html
+    # name = re.sub(r'(\d{4,5});', r'&#\1;', name)
+    name = html.unescape(name)
+    # name = re.sub(r'&#?\d+;?', ' ', name)
+
+    name = re.sub(r'[\\"\’\'#]', ' ', name)
+
+    parts = re.split(r'[\s.,\-:;+&/]+', name.lower().strip())
+
+    return [p for p in parts if p.strip() and not p.startswith('&')]
 
 def split_people(name: str) -> list[str]:
     names = [n.strip() for n in re.split(r'[;]', name) if n.strip()]
@@ -81,6 +93,8 @@ def correct_text(raw_input: str, ss) -> str:
 def get_best_term(name: str, ss = None, other_name_parts: tuple = ()) -> tuple[str, int]:
     if ss is None:
         ss = get_sym_spell()
+    if not any(c.isalpha() for c in name):
+        return name, float("inf")
     original_results = ss.lookup(name, Verbosity.CLOSEST, max_edit_distance=0)
 
     if not original_results:
@@ -122,6 +136,8 @@ def get_surname(names: tuple, ss) -> str | None:
     for name in names:
         if len(name) <= 1:
             continue
+        if name.isnumeric():
+            continue
         name = normalize_string(name)
         other_parts = tuple(n for n in names if n != name)
         term, count = get_best_term(name, ss, other_parts)
@@ -131,13 +147,24 @@ def get_surname(names: tuple, ss) -> str | None:
             min_count = count
             surname = term
 
-    return surname
+    if surname is None and names != []:
+        return names[0]
+    else:
+        return surname
 
 
 @lru_cache(maxsize=10000)
 def normalize_order(name: str) -> tuple[str]:
     """Remove punctuation, split, sort alphabetically so order doesn't matter."""
-    parts = re.split(r'[\s,.]+', name.strip().lower())
+    # Fix missing &# in numeric entities
+    name = re.sub(r'(\d{4,5});', r'&#\1;', name)
+    import html
+    name = html.unescape(name)
+    name = re.sub(r'&#?\d+;?', ' ', name)  
+
+    name = re.sub(r'[\\"\’\'#]', ' ', name)
+
+    parts = re.split(r'[\s.,\-:;+&/]+', name.lower().strip())
     return tuple(sorted(p.strip() for p in parts if p.strip()))
 
 
@@ -150,13 +177,17 @@ def is_consistent(name1: str, name2: str) -> bool:
     parts1 = normalize_order(name1)
     parts2 = normalize_order(name2)
 
+    # Allow merging if they are both undecodable numeric fragments
+    if not any(not p.isdigit() for p in parts1) and not any(not p.isdigit() for p in parts2):
+        return True
+
     if len(parts1) != len(parts2):
         return False
 
     for p1, p2 in zip(parts1, parts2):
         if len(p1) > 1 and len(p2) > 1:
             # Use fuzzy matching for full names to handle typos
-            if p1 != p2 and fuzz.ratio(p1, p2) < 80:
+            if p1 != p2 and fuzz.ratio(p1, p2) < 70:
                 return False
         elif len(p1) == 1 and len(p2) > 1:
             if not p2.startswith(p1):
@@ -167,25 +198,20 @@ def is_consistent(name1: str, name2: str) -> bool:
     return True
 
 def same_person(name1: str, name2: str) -> bool:
+    parts1 = normalize_order(name1)
+    parts2 = normalize_order(name2)
+    # Allow merging if they are both undecodable numeric fragments
+    if not any(not p.isdigit() for p in parts1) and not any(not p.isdigit() for p in parts2):
+        return True
     return to_initials_sorted(name1) == to_initials_sorted(name2) and is_consistent(name1, name2)
 
 def create_key(full_name: list, surname: str, ss=None) -> str:
     """Replaces create_final_name — no fuzz, just direct comparison"""
-    # initials = []
-    # for name in full_name:
-    #     name = normalize_string(name)
-    #     term, _ = get_best_term(name, ss)
-    #     resolved = term if term else name
-    #     if fuzz.ratio(resolved, surname) < 80:
-    #
-    #     # if resolved != surname:
-    #         initials.append(resolved[0])
-    # return f"{surname} {' '.join(initials)}"
-    initials = [
-        get_best_term(normalize_string(n), ss)[0][0]
-        for n in full_name
-        if fuzz.ratio(get_best_term(normalize_string(n), ss)[0], surname) < 80
-    ]
+    initials = []
+    for n in full_name:
+        term, _ = get_best_term(normalize_string(n), ss)
+        if fuzz.ratio(term, surname) < 80:
+            initials.append(term[0] if term else n[0])
     return f"{surname} {' '.join(initials)}"
 
 def create_full_key(full_name: list, surname: str, ss=None) -> str:
@@ -200,24 +226,6 @@ def create_full_key(full_name: list, surname: str, ss=None) -> str:
             first_names.append(resolved)
     return f"{surname} {' '.join(first_names)}"
 
-def create_final_name(full_name: list, surname: str):
-    first_name = []
-    surname = normalize_string(surname)
-    for name in full_name:
-        name = normalize_string(name)
-        if fuzz.ratio(name, surname) <= 75:
-            first_name.append(name[0])
-    return f"{surname} {' '.join(first_name)}"
-
-
-def create_full_final_name(full_name: list, surname: str):
-    first_names = []
-    surname = normalize_string(surname)
-    for name in full_name:
-        name = normalize_string(name)
-        if fuzz.ratio(name, surname) <= 75:
-            first_names.append(name)
-    return f"{surname} {' '.join(first_names)}"
 
 def pipeline(name: str, ss, raw):
     global total_distinct_names
@@ -227,25 +235,24 @@ def pipeline(name: str, ss, raw):
     splited_name = split_name(name)
     first_last = get_first_and_last_name(splited_name)
     surname = get_surname(first_last, ss)
-
     if surname is None:
         return
     key = create_key(splited_name, surname, ss)
-
     if key not in results:
         results[key] = {"original_name": [name], "full name": [raw]}
-        # results[key] = {"original_name": [raw], "books": []}
 
         return
 
     if name in results[key]["original_name"]:
+        if raw not in results[key]['full name']:
+            results[key]['full name'].append(raw)
         return
 
     if all(same_person(name, existing) for existing in results[key]["original_name"]):
         merged_names_count += 1
         results[key]["original_name"].append(name)
-        results[key]["full name"].append(raw)
-        # results[key]["original_name"].append(raw)
+        if raw not in results[key]['full name']:
+            results[key]['full name'].append(raw)
 
     else:
         full_key = create_full_key(splited_name, surname, ss)
@@ -253,13 +260,10 @@ def pipeline(name: str, ss, raw):
             full_key = f"{key} ({name.lower()})"
         if full_key not in results:
             results[full_key] = {"original_name": [name], "full name": [raw]}
-            # results[full_key] = {"original_name": [raw], "books": []}
         elif name not in results[full_key]["original_name"]:
             merged_names_count += 1
             results[full_key]["original_name"].append(name)
-            results[key]["full name"].append(raw)
-            # results[full_key]["original_name"].append(raw)
-
+            results[full_key]["full name"].append(raw)
 
 if __name__ == "__main__":
     from itertools import islice
@@ -269,12 +273,13 @@ if __name__ == "__main__":
     total_count_full = 0
 
     ss = get_sym_spell()
-
+    # with open("author_DB_names.txt", "r", encoding="utf-8") as d:
+    #     names = json.load(d)
     i = 0
+    # names = ["Philippe Daure"]
     get_df()
-    build_name_index()
+    # build_name_index()
     names = _df['name'].fillna('')
-
     for raw in names:
         total_count_full += 1
         # print(raw)
@@ -284,11 +289,21 @@ if __name__ == "__main__":
         for person in people:
             pipeline(person, ss, raw)
 
+    num_final_keys = len(results)
+    merged_names_count = total_distinct_names - num_final_keys
+
+    # Meaningful metrics
+    reduction_percentage = (merged_names_count / total_distinct_names) * 100 if total_distinct_names > 0 else 0
+    avg_records_per_entity = total_distinct_names / num_final_keys if num_final_keys > 0 else 0
+
     output = {
-        "total_count_full": total_count_full,
-        "total count": total_distinct_names,
-        "merged count": merged_names_count,
-        "merger ratio": (total_distinct_names/merged_names_count)
+        "total_raw_rows": int(total_count_full),
+        "total_author_records": int(total_distinct_names),
+        "unique_authors_found": int(num_final_keys),
+        "total_merges_performed": int(merged_names_count),
+        "reduction_percentage": f"{reduction_percentage:.2f}%",
+        "avg_names_per_author": round(avg_records_per_entity, 2),
+        # "merger_ratio_legacy": float(total_distinct_names / merged_names_count) if merged_names_count else 0,
     }
 
 

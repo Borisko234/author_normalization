@@ -60,3 +60,57 @@ problemy pri normalizacii - DONE typo v mene,Pike Aprilynne a Pike Aprliynne
 
 ak je origina_search[0].count <= 1, tak je to typo alebo novy -> skusim to opravit -> pozriem sa do DB na ostatne casti mena,
                                     ak ak su ostatne casti rovnake, tak je to typo a ukladam upravenu verziu, ak sa casti nezhoduju, tak je to nove meno a ukladam povodnu verziu
+
+
+"anděra m": {
+    "full name": [
+      "Alena Červená; Miloš Anděra",
+      "Miloš Anděra",
+      "Miloš Anděra; Pavel Procházka a kol."
+    ],
+    "original_name": [
+      "Miloš Anděra"
+    ]
+  },
+  "anděrovi r m": {
+    "full name": [
+      "Romana, Miloš Anděrovi"
+    ],
+    "original_name": [
+      "Romana, Miloš Anděrovi"
+    ]
+  },
+  "anděrová r": {
+    "full name": [
+      "Romana Anděrová",
+      "Romana Anděrová; Vladimír Motyčka"
+    ],
+    "original_name": [
+      "Romana Anděrová"
+    ]
+    ------------------------------------------
+
+    "aaken d v": {
+    "full name": [
+      "Aaken, Anne van",
+      "Aaken, Dominik van"
+    ],
+    "original_name": [
+      "Aaken, Anne van",
+      "Aaken, Dominik van"
+    ]
+  }
+  -----------------------------------------------
+
+  "aaron m d": {
+    "full name": [
+      "Aaron, Gavin J.",
+      "Aaron, Jane E.; Fowler, H. Ramsey",
+      "Aaron, Melissa D."
+    ],
+    "original_name": [
+      "Aaron, Gavin J.",
+      "Aaron, Jane E.",
+      "Aaron, Melissa D."
+    ]
+  },

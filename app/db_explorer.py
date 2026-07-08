@@ -469,21 +469,6 @@ def example_cross_db_task(conn, source_db, source_table, target_db, target_table
                 global_isbn_pool.add(isbn)
         with open("author_DB_names.txt", "w", encoding="utf-8") as f:
             json.dump(all_authors, f, ensure_ascii=False, indent=2)
-        # if global_isbn_pool:
-        #     with open("isbn_DB.txt", "w", encoding="utf-8") as f:
-        #         json.dump(sorted(global_isbn_pool), f, ensure_ascii=False, indent=2 )
-        #     isbn_authors = get_authors_openlibrary_batch(global_isbn_pool, session)
-        #     for author in isbn_authors:
-        #         all_authors.append(isbn_authors[author][0])
-
-        # with open("raw_DB_names.txt", "w", encoding="utf-8") as f:
-        #     json.dump(all_authors, f, ensure_ascii=False, indent=2)
-
-        # subprocess.run(
-        #     ["python", "app/query_edited.py"],
-        #     input=json.dumps(all_authors),
-        #     text=True
-        # )
 
     except mysql.connector.Error as err:
         print(f"Database error during processing: {err}")

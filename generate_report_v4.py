@@ -6,7 +6,7 @@ no_books_count = 0
 def generate_report_v4():
     global no_books_count
     print("Loading output.json...")
-    with open("output.json", "r", encoding="utf-8") as f:
+    with open("splink_clusters_test.json", "r", encoding="utf-8") as f:
         authors = json.load(f)
 
     print("Loading ps_supplier.csv...")
@@ -42,7 +42,10 @@ def generate_report_v4():
         orig_names_with_books = []
         has_any_books = False
         
-        for orig_name in data['original_name']:
+        for orig_name in data['full name']:
+            # print(orig_name)
+            if not isinstance(orig_name, str):
+                continue
             s_id = name_to_id.get(orig_name.strip().lower())
             books = []
             if s_id and s_id in supplier_to_products:
@@ -55,7 +58,8 @@ def generate_report_v4():
             })
         
         # Filter: Only display authors when there are >1 original authors in source data
-        if len(data['original_name']) > 1 and has_any_books:
+        if len(data['full name']) > 1 and has_any_books:
+            print(f"Processing author: {norm_name}")
             authors_data.append({
                 "normalized_name": norm_name,
                 "original_names": orig_names_with_books
@@ -69,7 +73,7 @@ def generate_report_v4():
     total_chunks = math.ceil(len(authors_data) / chunk_size)
     
     # Define directories
-    base_dir = "report_v6"
+    base_dir = "report_splink"
     parts_dir = os.path.join(base_dir, "parts")
     
     if not os.path.exists(parts_dir):
@@ -150,107 +154,107 @@ def generate_report_v4():
         <div id="authorList">
 """)
             
-        for author in chunk:
-            f.write(f'            <div class="author-card" data-name="{author["normalized_name"].lower()} {" ".join([on["name"].lower() for on in author["original_names"]])}">\n')
-            f.write(f'                <div class="author-name">{author["normalized_name"]}</div>\n')
+            for author in chunk:
+                f.write(f'            <div class="author-card" data-name="{author["normalized_name"].lower()} {" ".join([on["name"].lower() for on in author["original_names"]])}">\n')
+                f.write(f'                <div class="author-name">{author["normalized_name"]}</div>\n')
 
-            for orig in author["original_names"]:
-                f.write(f'                <div class="orig-name-section">\n')
-                f.write(f'                    <div class="orig-name">Original: {orig["name"]}</div>\n')
+                for orig in author["original_names"]:
+                    f.write(f'                <div class="orig-name-section">\n')
+                    f.write(f'                    <div class="orig-name">Original: {orig["name"]}</div>\n')
 
-                if orig["books"]:
-                    f.write(f'                    <div class="books-grid">\n')
-                    for b_id in orig["books"]:
-                        img_url = f"https://img-cloud.megaknihy.cz/{b_id}-category/7bb17d304530a6a2b81a63bd0fedef4c/odhaleni-michaela-jacksona-pribeh-ktery-jste-nikdy-neslyseli.webp"
-                        f.write(f'                        <div class="book">\n')
-                        f.write(f'                            <img data-src="{img_url}" alt="Book {b_id}" class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" onclick="openModal((this.dataset.src || this.src).replace(\'-category\', \'-large\'))">\n')
-                        f.write(f'                            <div class="book-id">ID: {b_id}</div>\n')
-                        f.write(f'                        </div>\n')
-                    f.write(f'                    </div>\n')
-                else:
-                    no_books_count += 1
-                    f.write(f'                    <div style="color: #95a5a6; font-style: italic;">No books found in the database for this name.</div>\n')
+                    if orig["books"]:
+                        f.write(f'                    <div class="books-grid">\n')
+                        for b_id in orig["books"]:
+                            img_url = f"https://img-cloud.megaknihy.cz/{b_id}-category/7bb17d304530a6a2b81a63bd0fedef4c/odhaleni-michaela-jacksona-pribeh-ktery-jste-nikdy-neslyseli.webp"
+                            f.write(f'                        <div class="book">\n')
+                            f.write(f'                            <img data-src="{img_url}" alt="Book {b_id}" class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" onclick="openModal((this.dataset.src || this.src).replace(\'-category\', \'-large\'))">\n')
+                            f.write(f'                            <div class="book-id">ID: {b_id}</div>\n')
+                            f.write(f'                        </div>\n')
+                        f.write(f'                    </div>\n')
+                    else:
+                        no_books_count += 1
+                        f.write(f'                    <div style="color: #95a5a6; font-style: italic;">No books found in the database for this name.</div>\n')
 
-                f.write(f'                </div>\n')
-            f.write(f'            </div>\n')
+                    f.write(f'                </div>\n')
+                f.write(f'            </div>\n')
 
-        f.write("""
+            f.write("""
+            </div>
         </div>
-    </div>
-
-    <!-- Modal for enlarging images -->
-    <div id="imageModal" class="modal" onclick="closeModal()">
-        <span class="modal-close">&times;</span>
-        <img class="modal-content" id="modalImg">
-    </div>
-
-    <script>
-        function filterAuthors() {
-            const input = document.getElementById('searchInput');
-            const filter = input.value.toLowerCase();
-            const cards = document.getElementsByClassName('author-card');
-            let visibleCount = 0;
-            let firstVisible = null;
-
-            for (let i = 0; i < cards.length; i++) {
-                const name = cards[i].getAttribute('data-name');
-                if (name.includes(filter)) {
-                    cards[i].classList.remove('hidden');
-                    visibleCount++;
-                    if (!firstVisible) firstVisible = cards[i];
-                } else {
-                    cards[i].classList.add('hidden');
-                }
-            }
-            document.getElementById('stats').innerText = `Showing ${visibleCount} authors`;
-            
-            if (firstVisible && filter.length > 0) {
-                firstVisible.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            lazyLoad();
-        }
-
-        // Auto-search from URL parameter
-        window.addEventListener('load', () => {
-            const params = new URLSearchParams(window.location.search);
-            const search = params.get('search');
-            if (search) {
-                document.getElementById('searchInput').value = search;
-                filterAuthors();
-            }
-        });
-
-        function lazyLoad() {
-            const lazyImages = document.querySelectorAll('img.lazy');
-            const observer = new IntersectionObserver((entries, observer) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const img = entry.target;
-                        img.src = img.dataset.src;
-                        img.classList.remove('lazy');
-                        observer.unobserve(img);
+    
+        <!-- Modal for enlarging images -->
+        <div id="imageModal" class="modal" onclick="closeModal()">
+            <span class="modal-close">&times;</span>
+            <img class="modal-content" id="modalImg">
+        </div>
+    
+        <script>
+            function filterAuthors() {
+                const input = document.getElementById('searchInput');
+                const filter = input.value.toLowerCase();
+                const cards = document.getElementsByClassName('author-card');
+                let visibleCount = 0;
+                let firstVisible = null;
+    
+                for (let i = 0; i < cards.length; i++) {
+                    const name = cards[i].getAttribute('data-name');
+                    if (name.includes(filter)) {
+                        cards[i].classList.remove('hidden');
+                        visibleCount++;
+                        if (!firstVisible) firstVisible = cards[i];
+                    } else {
+                        cards[i].classList.add('hidden');
                     }
-                });
+                }
+                document.getElementById('stats').innerText = `Showing ${visibleCount} authors`;
+                
+                if (firstVisible && filter.length > 0) {
+                    firstVisible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                lazyLoad();
+            }
+    
+            // Auto-search from URL parameter
+            window.addEventListener('load', () => {
+                const params = new URLSearchParams(window.location.search);
+                const search = params.get('search');
+                if (search) {
+                    document.getElementById('searchInput').value = search;
+                    filterAuthors();
+                }
             });
-
-            lazyImages.forEach(img => observer.observe(img));
-        }
-        window.addEventListener('load', lazyLoad);
-
-        function openModal(src) {
-            const modal = document.getElementById("imageModal");
-            const modalImg = document.getElementById("modalImg");
-            modal.style.display = "block";
-            modalImg.src = src;
-        }
-
-        function closeModal() {
-            document.getElementById("imageModal").style.display = "none";
-        }
-    </script>
-</body>
-</html>
-""")
+    
+            function lazyLoad() {
+                const lazyImages = document.querySelectorAll('img.lazy');
+                const observer = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            img.src = img.dataset.src;
+                            img.classList.remove('lazy');
+                            observer.unobserve(img);
+                        }
+                    });
+                });
+    
+                lazyImages.forEach(img => observer.observe(img));
+            }
+            window.addEventListener('load', lazyLoad);
+    
+            function openModal(src) {
+                const modal = document.getElementById("imageModal");
+                const modalImg = document.getElementById("modalImg");
+                modal.style.display = "block";
+                modalImg.src = src;
+            }
+    
+            function closeModal() {
+                document.getElementById("imageModal").style.display = "none";
+            }
+        </script>
+    </body>
+    </html>
+    """)
         # Ensure files are editable by everyone
         try:
             os.chmod(filename, 0o666)

@@ -160,6 +160,8 @@ ps_supplier/ps_supplier.csv
 !ps_supplier/csv.txt
 *.pickle
 report_v5/
+report_v6/
+report_splink/
 ps_product.csv
 !requirements.txt
 
