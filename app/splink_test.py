@@ -29,7 +29,7 @@ def get_df():
             usecols=['id', 'name', 'first_name', 'last_name'],
             dtype={'name': str},
             low_memory=False,
-            # nrows=10000
+            # nrows=100000
         )
     return _df
 
@@ -37,8 +37,12 @@ def get_df():
 def get_surname_firstname(names: list, ss, first_name=False) -> str:
     if not names:
         return "unknown"
+    if len(names) == 1:
+        return names[0]
 
+    first_last_names = [names[0], names[-1]]
     clean_names = names
+
 
     if first_name:
         worst_count = float('-inf')
@@ -47,14 +51,19 @@ def get_surname_firstname(names: list, ss, first_name=False) -> str:
 
     surname = None
 
-    for name in clean_names:
+    for name in first_last_names:
 
-        name_clean = normalize_string(name)
-        other_parts = tuple(n for n in clean_names if n != name)
         if len(name) <= 1:
-            continue
+            if len(names) == 3:
+                if len(names[1]) > 1:
+                    name = names[1]
         if name.isnumeric():
             continue
+
+        name_clean = normalize_string(name)
+
+        other_parts = tuple(n for n in clean_names if n != name)
+
         term, count = get_best_term(name_clean, ss, other_parts)
 
         if term is None or term.strip() in ['', '-']:
@@ -73,8 +82,13 @@ def get_surname_firstname(names: list, ss, first_name=False) -> str:
     return surname if (surname and surname.strip() not in ['', '-']) else names[0]
 
 
-
 ss = get_sym_spell()
+
+# for raw in ["Abelarová Taisha", "Rowlingová, Helen Brady J. K.", "J. K. Rowling", "Joanne K. Rowling"]:
+#     print(raw)
+#     print(get_surname_firstname(split_name(raw), ss, first_name=False))
+#     print(get_surname_firstname(split_name(raw), ss, first_name=True))
+#     print()
 
 
 print("<---getting DB--->")
@@ -97,8 +111,8 @@ _df = _df.rename(columns={'name_list': 'person_name'})
 _df = _df[_df['person_name'].astype(str).str.strip() != '']
 _df = _df[~_df['person_name'].astype(str).isin(['None', 'nan', '', 'null'])]
 
-_df['last_name'] = _df['person_name'].apply(lambda name: get_surname_firstname(get_first_and_last_name(split_name(name)), ss, first_name=False))
-_df['first_name'] = _df['person_name'].apply(lambda name: get_surname_firstname(get_first_and_last_name(split_name(name)), ss, first_name=True))
+_df['last_name'] = _df['person_name'].apply(lambda name: get_surname_firstname(split_name(name), ss, first_name=False))
+_df['first_name'] = _df['person_name'].apply(lambda name: get_surname_firstname(split_name(name), ss, first_name=True))
 
 _df['name_sorted'] = _df['person_name'].apply(lambda x: " ".join(sorted(str(x).lower().split())))
 
@@ -128,9 +142,10 @@ settings = SettingsCreator(
         cl.JaroWinklerAtThresholds("person_name")
     ],
     blocking_rules_to_generate_predictions=[
-        "l.last_name = r.last_name and substring(l.first_name, 1, 2) = substring(r.first_name, 1, 2)",
-        "l.first_name = r.first_name and substring(l.last_name, 1, 2) = substring(r.last_name, 1, 2)",
-        "l.name_sorted = r.name_sorted"
+        "l.last_name = r.last_name and substring(l.first_name, 1, 3) = substring(r.first_name, 1, 3)",
+        "l.first_name = r.first_name and substring(l.last_name, 1, 3) = substring(r.last_name, 1, 3)",
+        "l.name_sorted = r.name_sorted",
+        "l.last_name = r.last_name and substring(l.first_name,1,1) = substring(r.first_name,1,1)"
     ],
 )
 
@@ -141,18 +156,22 @@ linker.training.estimate_probability_two_random_records_match(
     ["l.first_name = r.first_name and l.last_name = r.last_name"], recall=0.7
 )
 print(1)
-linker.training.estimate_u_using_random_sampling(max_pairs=1e6)
+linker.training.estimate_u_using_random_sampling(max_pairs=1e7)
 print(2)
-linker.training.estimate_parameters_using_expectation_maximisation("l.last_name = r.last_name and substring(l.first_name, 1, 2) = substring(r.first_name, 1, 2)")
+linker.training.estimate_parameters_using_expectation_maximisation("l.last_name = r.last_name and substring(l.first_name, 1, 3) = substring(r.first_name, 1, 3)")
 print(3)
-linker.training.estimate_parameters_using_expectation_maximisation("l.first_name = r.first_name and substring(l.last_name, 1, 2) = substring(r.last_name, 1, 2)")
+linker.training.estimate_parameters_using_expectation_maximisation("l.first_name = r.first_name and substring(l.last_name, 1, 3) = substring(r.last_name, 1, 3)")
 print(4)
 linker.training.estimate_parameters_using_expectation_maximisation("l.name_sorted = r.name_sorted")
-print(5)
 
-predictions = linker.inference.predict(threshold_match_probability=0.97)
+print(5)
+linker.training.estimate_parameters_using_expectation_maximisation(
+    "l.last_name = r.last_name and substring(l.first_name,1,1) = substring(r.first_name,1,1)")
+print(6)
+
+predictions = linker.inference.predict(threshold_match_probability=0.99)
 clusters = linker.clustering.cluster_pairwise_predictions_at_threshold(
-    predictions, threshold_match_probability=0.97
+    predictions, threshold_match_probability=0.99
 )
 clusters_df = clusters.as_pandas_dataframe()
 
@@ -174,7 +193,6 @@ full_output_df = full_output_df.drop(columns=['first_name_mode', 'last_name_mode
 
 
 full_output_df["split_person_name"] = full_output_df["person_name"].map(split_name)
-
 
 print("only grouping left to do")
 used_keys = {}
@@ -235,7 +253,7 @@ def sort_json(obj):
 
 
 sorted_results = sort_json(output)
-with open("splink_clusters_test.json", "w", encoding="utf-8") as f:
+with open("splink_clusters_test2.json", "w", encoding="utf-8") as f:
     json.dump(sorted_results, f, indent=2, ensure_ascii=False)
 
 
@@ -259,7 +277,7 @@ output_numbers = {
 }
 
 
-with open("splink_numbers_test.json", "w", encoding="utf-8") as f:
+with open("splink_numbers_test2.json", "w", encoding="utf-8") as f:
     json.dump(output_numbers, f, indent=2, ensure_ascii=False)
 
 print("SUCCESS: Full database processed into JSON output.")

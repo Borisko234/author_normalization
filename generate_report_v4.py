@@ -59,7 +59,7 @@ def generate_report_v4():
         
         # Filter: Only display authors when there are >1 original authors in source data
         if len(data['full name']) > 1 and has_any_books:
-            print(f"Processing author: {norm_name}")
+            # print(f"Processing author: {norm_name}")
             authors_data.append({
                 "normalized_name": norm_name,
                 "original_names": orig_names_with_books

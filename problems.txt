@@ -114,3 +114,14 @@ ak je origina_search[0].count <= 1, tak je to typo alebo novy -> skusim to oprav
       "Aaron, Melissa D."
     ]
   },
+
+
+  -----------------------------------------------
+   "aaron j j": {
+    "full name": [
+      "Jackson, Aaron J."
+    ],
+    "original_name": [
+      "Jackson, Aaron J."
+    ]
+  }, -----> Jackson is the surname

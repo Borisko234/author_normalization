@@ -11,4 +11,4 @@ with open("splink_clusters_test.json", encoding="utf-8") as f:
 #     # Check if None is inside the full name list
 #     if "null" in values.get("full name", []):
 #         print(f"Found null in 'full name' for key: {key}")
-print(data.get("rowling j k"))
+print(data['original_name'].get("Aaron, Gavin J"))
