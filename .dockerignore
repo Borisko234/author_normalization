@@ -18,3 +18,5 @@ ps_supplier/*.pkl
 Makefile
 Dockerfile
 docker-compose.yml
+.jsonl
+.tmp
